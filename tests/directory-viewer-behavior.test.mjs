@@ -63,6 +63,17 @@ test('a newly added inactive tab panel is hidden immediately', async () => {
   assert.match(addTab[0], /this\.applyActiveTab\(\)/)
 })
 
+test('source button toggles directory content between raw and preview', async () => {
+  const source = await readFile(viewerUrl, 'utf8')
+  const rawButton = source.match(
+    /\/\* raw toggle button \*\/[\s\S]*?\/\* side expand button \*\//,
+  )
+
+  assert.ok(rawButton, 'expected to find the raw toggle button')
+  assert.match(rawButton[0], /rawToggleBtn\.on\(['"]click['"]/)
+  assert.match(rawButton[0], /toggleRawContent/)
+})
+
 test('relative images are masked while absolute images are left alone', async () => {
   const { prepareRelativeImages, TRANSPARENT_IMAGE_PLACEHOLDER } = await import(
     localImagesUrl

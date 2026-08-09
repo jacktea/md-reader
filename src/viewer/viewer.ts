@@ -90,10 +90,24 @@ async function main() {
     true,
   )
 
+  const rawContent = new Ele<HTMLElement>('pre', {
+    className: `${className.MD_CONTENT} centered`,
+  })
+  rawContent.hide()
+  let currentMarkdown: string | null = null
+  let rawMode = false
+
+  function toggleRawContent(): void {
+    if (currentMarkdown === null) return
+    rawMode = !rawMode
+    mdContent.toggle(!rawMode)
+    rawContent.toggle(rawMode)
+  }
+
   const mdBody = new Ele<HTMLElement>('main', {
     className: className.MD_BODY,
   })
-  mdBody.append(mdContent)
+  mdBody.append([mdContent, rawContent])
 
   // onScroll can run while the initial file is being restored, before the
   // rest of main() resumes after awaiting File System Access operations.
@@ -242,17 +256,28 @@ async function main() {
   })
 
   const swapContent = (content: string, _name: string) => {
+    currentMarkdown = content
+    rawContent.textContent = content
     contentRender(content)
     prepareRelativeImages(mdContent.ele)
+    mdContent.toggle(!rawMode)
+    rawContent.toggle(rawMode)
     renderSide()
     return mdContent.ele
+  }
+
+  const showBinary = (handle: FileSystemFileHandle, name: string) => {
+    currentMarkdown = null
+    rawMode = false
+    rawContent.hide()
+    mdContent.show()
+    previewBinary(handle, name, mdContent, mdSideList)
   }
 
   const tree = new DirectoryTree({
     root: dirtreeContainer.ele,
     onOpenMdFile: swapContent,
-    onOpenBinaryFile: (handle, name) =>
-      previewBinary(handle, name, mdContent, mdSideList),
+    onOpenBinaryFile: showBinary,
     onUrlChange: (path: string) => setHashPath(path),
     onPick: () => {
       const path = getHashPath()
@@ -286,6 +311,7 @@ async function main() {
     },
     svg(codeIcon),
   )
+  rawToggleBtn.on('click', toggleRawContent)
 
   /* side expand button */
   const sideExpandBtn = new Ele<HTMLElement>(

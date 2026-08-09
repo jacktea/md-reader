@@ -6,9 +6,98 @@ let ele: HTMLImageElement = null
 let modal: Ele<HTMLElement> = null
 let clonedEle: Ele<HTMLImageElement> = null
 let setPosition = null
+let images: HTMLImageElement[] = []
+let imageIndex = -1
+let positionContainer: HTMLElement = null
 const debounceSetLastPosition = debounce(() => {
-  setPosition(calcLastPosition(ele.naturalWidth, ele.naturalHeight))
+  if (ele) {
+    setPosition(calcLastPosition(ele.naturalWidth, ele.naturalHeight))
+  }
 }, 100)
+
+function isPreviewableImage(element: HTMLImageElement): boolean {
+  return !element.closest('a')
+}
+
+function showImage(element: HTMLImageElement, fromElement?: HTMLImageElement) {
+  if (fromElement) {
+    fromElement.style.visibility = ''
+  }
+
+  ele = element
+  clonedEle.src = ele.currentSrc || ele.src
+  clonedEle.ele.alt = ele.alt
+  ele.style.visibility = 'hidden'
+
+  const updatePosition = () => {
+    if (ele !== element) return
+    setPosition(
+      calcLastPosition(
+        clonedEle.ele.naturalWidth || ele.naturalWidth,
+        clonedEle.ele.naturalHeight || ele.naturalHeight,
+      ),
+    )
+  }
+
+  if (clonedEle.ele.complete) {
+    updatePosition()
+  } else {
+    clonedEle.once('load', updatePosition)
+  }
+}
+
+function switchImage(offset: number) {
+  if (images.length < 2) return
+
+  const previous = ele
+  imageIndex = (imageIndex + offset + images.length) % images.length
+  showImage(images[imageIndex], previous)
+}
+
+function closeModal(e?: Event) {
+  if (modal?.classList.contains('opened')) {
+    document.removeEventListener('keydown', onKeydown)
+    window.removeEventListener('resize', debounceSetLastPosition)
+    debounceSetLastPosition.cancel()
+
+    modal.once('transitionend', function hidden() {
+      if (ele) ele.style.visibility = ''
+      modal.hide()
+      clonedEle.hide()
+      clonedEle.src = ''
+      ele = null
+      images = []
+      imageIndex = -1
+      positionContainer = null
+    })
+
+    setPosition(calcFirstPosition(ele, positionContainer))
+    modal.classList.remove('opened')
+  }
+
+  if (e) {
+    e.stopPropagation()
+    e.preventDefault()
+  }
+}
+
+function onKeydown(e: KeyboardEvent) {
+  if (!modal?.classList.contains('opened')) return
+
+  if (e.code === 'ArrowLeft') {
+    switchImage(-1)
+  } else if (e.code === 'ArrowRight') {
+    switchImage(1)
+  } else if (e.code === 'Escape') {
+    closeModal(e)
+    return
+  } else {
+    return
+  }
+
+  e.stopPropagation()
+  e.preventDefault()
+}
 
 export function imgViewer(
   element: HTMLImageElement,
@@ -16,6 +105,18 @@ export function imgViewer(
 ) {
   // prevent the element closure
   ele = element
+  positionContainer = container
+
+  const gallery =
+    element.closest<HTMLElement>(`.${className.MD_CONTENT}`) || container
+  images = Array.from(gallery.querySelectorAll<HTMLImageElement>('img')).filter(
+    isPreviewableImage,
+  )
+  imageIndex = images.indexOf(element)
+  if (imageIndex < 0) {
+    images = [element]
+    imageIndex = 0
+  }
 
   // init modal
   if (!modal) {
@@ -38,26 +139,9 @@ export function imgViewer(
   }
   // init first position
   setPosition(calcFirstPosition(ele, container))
-  clonedEle.src = ele.src
+  clonedEle.src = ele.currentSrc || ele.src
+  clonedEle.ele.alt = ele.alt
   clonedEle.show()
-
-  // close modal
-  function closeModal(e: Event) {
-    if (modal.classList.contains('opened')) {
-      modal.once('transitionend', function hidden() {
-        ele = ele.style.visibility = null
-        modal.hide()
-        clonedEle.hide()
-        clonedEle.src = ''
-      })
-
-      setPosition(calcFirstPosition(ele, container))
-      modal.classList.remove('opened')
-      window.removeEventListener('resize', debounceSetLastPosition)
-    }
-
-    return e.stopPropagation(), e.preventDefault(), false
-  }
 
   // open the modal
   modal.show()
@@ -71,6 +155,7 @@ export function imgViewer(
 
   // update last position
   window.addEventListener('resize', debounceSetLastPosition)
+  document.addEventListener('keydown', onKeydown)
 }
 
 export default function imgViewerPlugin({ event }) {
