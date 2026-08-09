@@ -22,6 +22,13 @@ import sideIcon from '@/images/icon_side.svg'
 import goTopIcon from '@/images/icon_go_top.svg'
 import '@/style/index.less'
 
+// Local file directory tree
+import SidebarTabs from '@/core/sidebar-tabs'
+import DirectoryTree, { storeRootHandle } from '@/core/directory-tree'
+
+// Mermaid async rendering
+import { renderDiagrams } from '@/core/mermaid'
+
 function main(data: Data) {
   const configData = getDefaultData(data)
   const actions = {
@@ -70,6 +77,11 @@ function main(data: Data) {
   let globalEvent: Event = new Event()
 
   initPlugins({ event: globalEvent })
+
+  // render mermaid diagrams after every content render
+  globalEvent.on('contentRendered', (container: HTMLElement) => {
+    void renderDiagrams(container)
+  })
 
   /* init md page */
   setTheme(configData.pageTheme)
@@ -120,21 +132,38 @@ function main(data: Data) {
   )
 
   /* render side */
-  const mdSide = new Ele<HTMLElement>('ul', { className: className.MD_SIDE })
+  const mdSideList = new Ele<HTMLElement>('ul', {
+    className: className.MD_SIDE,
+  })
   let idCache: { [content: string]: number } = Object.create(null)
   let headElements: HTMLElement[] = []
   let sideLiElements: HTMLElement[] = []
   let df: Ele<DocumentFragment> = null
   let targetIndex: number = null
-  mdSide.on('mouseenter', () => {
+  mdSideList.on('mouseenter', () => {
     isSideHover = true
   })
-  mdSide.on('mouseleave', () => {
+  mdSideList.on('mouseleave', () => {
     isSideHover = false
   })
 
   renderSide()
   document.addEventListener('scroll', throttle(onScroll, 100))
+
+  // For local files, wrap the outline in a tab container and add a directory
+  // button.  The directory tree tab is only created after the user clicks the
+  // button and grants directory access via the File System Access API.
+  // For remote files, keep the plain outline sidebar as before.
+  const isLocalFile = document.URL.startsWith('file://')
+  let sidebarElement: Ele<HTMLElement> = mdSideList
+  let sidebarTabs: SidebarTabs | null = null
+  if (isLocalFile) {
+    sidebarTabs = new SidebarTabs({
+      outlineList: mdSideList.ele,
+      currentUrl: document.URL,
+    })
+    sidebarElement = new Ele(sidebarTabs.element)
+  }
 
   /* render raw toggle button */
   const rawToggleBtn = new Ele<HTMLElement>(
@@ -146,7 +175,7 @@ function main(data: Data) {
     svg(codeIcon),
   )
   rawToggleBtn.on('click', () => {
-    lifecycle.toggleRaw([mdBody, mdSide])
+    lifecycle.toggleRaw([mdBody, sidebarElement])
   })
 
   /* render side expand button */
@@ -198,6 +227,77 @@ function main(data: Data) {
     e.preventDefault()
     return false
   }
+
+  /* render directory open button (local files only) */
+  const dirOpenBtn = new Ele<HTMLElement>('button', {
+    className: [className.MD_BUTTON, className.DIR_OPEN_BTN],
+    title: '打开目录',
+  })
+  dirOpenBtn.textContent = '📂'
+  let dirTreeOpened = false
+  if (isLocalFile && sidebarTabs) {
+    dirOpenBtn.on('click', async () => {
+      if (dirTreeOpened) return
+      try {
+        const handle = await window.showDirectoryPicker()
+        dirTreeOpened = true
+        // persist the handle so DirectoryTree.init() can find it
+        await storeRootHandle(handle)
+
+        // create the dirtree container and directory tree
+        const dirtreeContainer = new Ele<HTMLElement>('div', {
+          className: className.TAB_DIRTREE,
+        })
+        const swapContent = (content: string) => {
+          mdRaw = content
+          contentRender(content)
+          // synchronously mask relative image srcs so the browser never
+          // attempts the (wrong) file:// URL; original kept in data-rel-src
+          const REL_SRC = /^(https?:|data:|blob:|file:)/i
+          const PLACEHOLDER =
+            'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+          mdContent.queryAll('img[src]').forEach((img: HTMLImageElement) => {
+            const src = img.getAttribute('src')
+            if (src && !REL_SRC.test(src)) {
+              img.setAttribute('data-rel-src', src)
+              img.src = PLACEHOLDER
+            }
+          })
+          renderSide()
+          return mdContent.ele
+        }
+        const previewBinary = (handle: FileSystemFileHandle, name: string) => {
+          void handle.getFile().then(file => {
+            const objectUrl = URL.createObjectURL(file)
+            const ext = name.split('.').pop()?.toLowerCase()
+            const imgExts = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp']
+            if (imgExts.includes(ext || '')) {
+              mdContent.innerHTML = `<div class="${className.MD_CONTENT}"><img src="${objectUrl}" alt="${name}" style="max-width:100%;display:block;margin:0 auto" /></div>`
+            } else if (ext === 'pdf') {
+              mdContent.innerHTML = `<iframe src="${objectUrl}" style="width:100%;height:90vh;border:none"></iframe>`
+            } else {
+              mdContent.innerHTML = `<div class="${className.MD_CONTENT}"><p style="text-align:center;padding:40px;color:var(--color-text-gray)">无法预览此文件类型: ${name}</p></div>`
+            }
+            mdSideList.innerHTML = null
+          })
+        }
+        new DirectoryTree({
+          root: dirtreeContainer.ele,
+          onOpenMdFile: swapContent,
+          onOpenBinaryFile: previewBinary,
+        })
+        sidebarTabs.addTab('dirtree', '目录树', dirtreeContainer.ele)
+        sidebarTabs.activateTab('dirtree')
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') {
+          console.error('Directory pick failed:', err)
+        }
+      }
+    })
+  } else {
+    dirOpenBtn.hide()
+  }
+
   /* render go top button */
   const goTopBtn = new Ele<HTMLElement>(
     'button',
@@ -213,11 +313,11 @@ function main(data: Data) {
   const buttonWrap = new Ele<HTMLElement>(
     'div',
     { className: className.BUTTON_WRAP_ELE },
-    [sideExpandBtn, rawToggleBtn, goTopBtn],
+    [sideExpandBtn, dirOpenBtn, rawToggleBtn, goTopBtn],
   )
 
   /* mount elements */
-  lifecycle.mount([buttonWrap, mdBody, mdSide])
+  lifecycle.mount([buttonWrap, mdBody, sidebarElement])
   updateAnchorPosition()
 
   darkMediaQuery.addEventListener('change', (e: MediaQueryListEvent) => {
@@ -264,8 +364,8 @@ function main(data: Data) {
     headElements = getHeads(mdContent)
     df = new Ele<DocumentFragment>('#document-fragment')
     sideLiElements = headElements.reduce(handleHeadItem, [])
-    mdSide.innerHTML = null
-    mdSide.append(df)
+    mdSideList.innerHTML = null
+    mdSideList.append(df)
     setTimeout(onScroll, 0)
   }
 

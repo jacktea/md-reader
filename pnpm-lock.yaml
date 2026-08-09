@@ -37,6 +37,9 @@ importers:
       '@traptitech/markdown-it-katex':
         specifier: ^3.6.0
         version: 3.6.0
+      '@viz-js/viz':
+        specifier: ^3.27.0
+        version: 3.29.0
       highlight.js:
         specifier: ^11.6.0
         version: 11.6.0
@@ -85,6 +88,9 @@ importers:
       markdown-it-task-lists:
         specifier: ^2.1.1
         version: 2.1.1
+      mermaid:
+        specifier: 9.1.6
+        version: 9.1.6
       svelte:
         specifier: ^3.50.0
         version: 3.50.0
@@ -656,6 +662,12 @@ packages:
     resolution:
       {
         integrity: sha512-4nZOdMwSPHZ4pTEZzSp0AsTM4K7Qmu40UKW4tJDiOVs20UzYF9l+qUe4s0ftfN0pin06n+5cWWDJXH+sbhAiDw==,
+      }
+
+  '@viz-js/viz@3.29.0':
+    resolution:
+      {
+        integrity: sha512-iq4MTqNCr8pinP4C73JRFx/h2w4QbtHvXINNiPeBv3/C5tSamXwakst6ODlR/l6uh3/SGr7IAGIfSk2qMekiNw==,
       }
 
   '@webassemblyjs/ast@1.11.1':
@@ -5005,6 +5017,8 @@ snapshots:
       '@types/node': 18.7.14
       '@types/source-list-map': 0.1.2
       source-map: 0.7.4
+
+  '@viz-js/viz@3.29.0': {}
 
   '@webassemblyjs/ast@1.11.1':
     dependencies:

@@ -17,24 +17,79 @@ body.md-reader {
   }
 
   .md-reader {
-    &__side {
-      overflow: auto;
+    // Fixed-position sidebar shell, shared by the plain outline (remote files)
+    // and the tab container (local files).
+    &__side,
+    &__side-tabs {
       position: fixed;
       top: 0;
       bottom: 0;
       left: 0;
       width: @side-width;
-      line-height: 1.4;
-      font-size: 14px;
-      padding: 22px 0;
       border-right: 1px solid var(--color-side-border);
-      margin: 0;
-      list-style: none;
       color: var(--color-side);
       background: var(--color-side-bg);
       transition: transform 0.3s, box-shadow 0.5s;
       will-change: transform, box-shadow;
       z-index: 1;
+    }
+
+    // Tab container: tab bar on top, content below.
+    &__side-tabs {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      .md-reader__tab-bar {
+        flex: 0 0 auto;
+        display: flex;
+        gap: 4px;
+        padding: 8px 8px 0;
+        border-bottom: 1px solid var(--color-side-border);
+        .md-reader__tab-item {
+          flex: 1;
+          padding: 8px 6px;
+          text-align: center;
+          font-size: 13px;
+          line-height: 1.2;
+          cursor: pointer;
+          border-radius: 6px 6px 0 0;
+          color: var(--color-text-gray);
+          user-select: none;
+          &:hover {
+            color: var(--color-primary);
+          }
+          &.tab-active {
+            color: var(--color-primary);
+            font-weight: bolder;
+            box-shadow: inset 0 -2px 0 var(--color-primary);
+          }
+        }
+      }
+      .md-reader__tab-content {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+        display: flex;
+        flex-direction: column;
+      }
+      // The outline list fills the tab content when inside the container.
+      .md-reader__side {
+        position: static;
+        width: 100%;
+        height: 100%;
+        border-right: none;
+        background: transparent;
+      }
+    }
+
+    // Outline list (used directly for remote files, and inside the tab container).
+    &__side {
+      overflow-y: auto;
+      line-height: 1.4;
+      font-size: 14px;
+      padding: 22px 0;
+      margin: 0;
+      list-style: none;
       li {
         &.md-reader__side-li--active {
           a {
@@ -84,6 +139,98 @@ body.md-reader {
             .head-indent(6);
           }
         }
+      }
+    }
+
+    // Directory tree (inside the tab container).
+    &__dirtree {
+      padding: 8px 0;
+      font-size: 14px;
+      line-height: 1.6;
+      user-select: none;
+      &-go-up {
+        display: block;
+        width: 100%;
+        padding: 6px 16px;
+        text-align: left;
+        font-size: 13px;
+        border: none;
+        background: none;
+        cursor: pointer;
+        color: var(--color-primary);
+        &:hover {
+          text-decoration: underline;
+        }
+        &.disabled {
+          opacity: 0.3;
+          cursor: default;
+          &:hover {
+            text-decoration: none;
+          }
+        }
+      }
+      &-pick-btn {
+        display: block;
+        margin: 24px auto 0;
+        padding: 8px 20px;
+        font-size: 14px;
+        border: 1px solid var(--color-primary);
+        border-radius: 6px;
+        background: var(--color-primary-alpha-10);
+        color: var(--color-primary);
+        cursor: pointer;
+        &:hover {
+          background: var(--color-primary);
+          color: var(--color-white);
+        }
+      }
+      ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      &-item {
+        padding: 0 0 0 16px;
+        cursor: pointer;
+        &:hover {
+          background: var(--color-primary-alpha-10);
+        }
+      }
+      &-toggle {
+        display: inline-block;
+        width: 16px;
+        text-align: center;
+        color: var(--color-text-gray);
+        font-size: 12px;
+        &.open {
+          color: var(--color-primary);
+        }
+      }
+      .dirtree-label {
+        padding: 2px 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .dirtree-hint {
+        padding: 16px;
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.5;
+        color: var(--color-text-gray);
+      }
+      .dirtree-path {
+        padding: 6px 16px;
+        font-size: 12px;
+        color: var(--color-text-gray);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        border-bottom: 1px solid var(--color-side-border);
+        cursor: help;
+      }
+      &-children {
+        padding-left: 16px;
       }
     }
 
@@ -158,6 +305,62 @@ body.md-reader {
             white-space: pre-wrap;
           }
         }
+        // mermaid diagram zoom/pan container
+        .md-reader__mermaid-zoom {
+          overflow: hidden;
+          max-height: 70vh;
+          margin: 16px 0;
+          border: 1px solid var(--color-side-border);
+          border-radius: 6px;
+          position: relative;
+          user-select: none;
+          touch-action: none;
+          .mermaid {
+            margin: 0;
+            padding: 16px;
+            background: var(--color-white);
+            svg {
+              display: block;
+              max-width: none;
+              margin: 0;
+            }
+          }
+          .mermaid-toolbar {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            display: flex;
+            gap: 4px;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 2;
+          }
+          &:hover .mermaid-toolbar {
+            opacity: 1;
+          }
+          .mermaid-toolbar-btn {
+            width: 28px;
+            height: 28px;
+            padding: 4px;
+            border: 1px solid var(--color-side-border);
+            border-radius: 4px;
+            background: var(--color-white);
+            color: var(--color-text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            &:hover {
+              background: var(--color-primary-alpha-10);
+              color: var(--color-primary);
+            }
+            svg {
+              width: 16px;
+              height: 16px;
+              display: block;
+            }
+          }
+        }
       }
     }
 
@@ -202,7 +405,8 @@ body.md-reader {
     }
 
     @media screen and (max-width: 960px) {
-      &__side {
+      &__side,
+      &__side-tabs {
         transform: translateX(-100%);
         border-color: transparent;
       }
@@ -243,7 +447,8 @@ body.md-reader {
 
   &.side-collapsed {
     .md-reader {
-      &__side {
+      &__side,
+      &__side-tabs {
         transform: translateX(-100%);
         border-color: transparent;
       }
@@ -257,7 +462,8 @@ body.md-reader {
   }
   &.side-expanded {
     .md-reader {
-      &__side {
+      &__side,
+      &__side-tabs {
         box-shadow: var(--color-side-shadow);
         transform: translateX(0);
       }
@@ -330,6 +536,15 @@ body.md-reader {
       position: fixed;
       right: 16px;
       bottom: 16px;
+    }
+    &--dir-open {
+      position: absolute;
+      right: 56px;
+      font-size: 16px;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     &--copy {
       opacity: 0;

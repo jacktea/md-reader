@@ -18,4 +18,23 @@ export default {
   SIDE_EXPANDED: 'side-expanded',
   MODAL: p`modal`,
   ZOOM_IMAGE: p`zoom-image`,
+  // Tab container
+  SIDE_TABS: p`side-tabs`,
+  TAB_BAR: p`tab-bar`,
+  TAB_ITEM: p`tab-item`,
+  TAB_ACTIVE: 'tab-active',
+  TAB_CONTENT: p`tab-content`,
+  TAB_OUTLINE: p`tab-outline`,
+  TAB_DIRTREE: p`tab-dirtree`,
+  // Directory tree
+  DIRTREE: p`dirtree`,
+  DIRTREE_ITEM: p`dirtree-item`,
+  DIRTREE_DIR: p`dirtree-dir`,
+  DIRTREE_FILE: p`dirtree-file`,
+  DIRTREE_ACTIVE: p`dirtree-active`,
+  DIRTREE_TOGGLE: p`dirtree-toggle`,
+  DIRTREE_CHILDREN: p`dirtree-children`,
+  DIRTREE_GO_UP: p`dirtree-go-up`,
+  DIRTREE_PICK_BTN: p`dirtree-pick-btn`,
+  DIR_OPEN_BTN: p`btn--dir-open`,
 }

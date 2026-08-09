@@ -7,3 +7,8 @@ extension.pem
 .vscode/settings.json
 .idea
 .fleet
+.agents
+.DS_Store
+AGENTS.md
+CONTEXT.md
+docs
