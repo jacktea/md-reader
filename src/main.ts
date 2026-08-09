@@ -22,9 +22,8 @@ import sideIcon from '@/images/icon_side.svg'
 import goTopIcon from '@/images/icon_go_top.svg'
 import '@/style/index.less'
 
-// Local file directory tree
+// Local file directory tree - no longer used here, viewer.html handles it
 import SidebarTabs from '@/core/sidebar-tabs'
-import DirectoryTree, { storeRootHandle } from '@/core/directory-tree'
 
 // Mermaid async rendering
 import { renderDiagrams } from '@/core/mermaid'
@@ -234,65 +233,12 @@ function main(data: Data) {
     title: '打开目录',
   })
   dirOpenBtn.textContent = '📂'
-  let dirTreeOpened = false
   if (isLocalFile && sidebarTabs) {
-    dirOpenBtn.on('click', async () => {
-      if (dirTreeOpened) return
-      try {
-        const handle = await window.showDirectoryPicker()
-        dirTreeOpened = true
-        // persist the handle so DirectoryTree.init() can find it
-        await storeRootHandle(handle)
-
-        // create the dirtree container and directory tree
-        const dirtreeContainer = new Ele<HTMLElement>('div', {
-          className: className.TAB_DIRTREE,
-        })
-        const swapContent = (content: string) => {
-          mdRaw = content
-          contentRender(content)
-          // synchronously mask relative image srcs so the browser never
-          // attempts the (wrong) file:// URL; original kept in data-rel-src
-          const REL_SRC = /^(https?:|data:|blob:|file:)/i
-          const PLACEHOLDER =
-            'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
-          mdContent.queryAll('img[src]').forEach((img: HTMLImageElement) => {
-            const src = img.getAttribute('src')
-            if (src && !REL_SRC.test(src)) {
-              img.setAttribute('data-rel-src', src)
-              img.src = PLACEHOLDER
-            }
-          })
-          renderSide()
-          return mdContent.ele
-        }
-        const previewBinary = (handle: FileSystemFileHandle, name: string) => {
-          void handle.getFile().then(file => {
-            const objectUrl = URL.createObjectURL(file)
-            const ext = name.split('.').pop()?.toLowerCase()
-            const imgExts = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp']
-            if (imgExts.includes(ext || '')) {
-              mdContent.innerHTML = `<div class="${className.MD_CONTENT}"><img src="${objectUrl}" alt="${name}" style="max-width:100%;display:block;margin:0 auto" /></div>`
-            } else if (ext === 'pdf') {
-              mdContent.innerHTML = `<iframe src="${objectUrl}" style="width:100%;height:90vh;border:none"></iframe>`
-            } else {
-              mdContent.innerHTML = `<div class="${className.MD_CONTENT}"><p style="text-align:center;padding:40px;color:var(--color-text-gray)">无法预览此文件类型: ${name}</p></div>`
-            }
-            mdSideList.innerHTML = null
-          })
-        }
-        new DirectoryTree({
-          root: dirtreeContainer.ele,
-          onOpenMdFile: swapContent,
-          onOpenBinaryFile: previewBinary,
-        })
-        sidebarTabs.addTab('dirtree', '目录树', dirtreeContainer.ele)
-        sidebarTabs.activateTab('dirtree')
-      } catch (err) {
-        if ((err as Error).name !== 'AbortError') {
-          console.error('Directory pick failed:', err)
-        }
-      }
+    dirOpenBtn.on('click', () => {
+      // navigate to viewer; viewer handles directory pick + handle storage in
+      // its own chrome-extension:// origin (content-script IndexedDB is
+      // isolated per origin, so handles stored here would be invisible there)
+      window.location.href = chrome.runtime.getURL('viewer.html#/')
     })
   } else {
     dirOpenBtn.hide()

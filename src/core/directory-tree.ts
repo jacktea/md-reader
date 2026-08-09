@@ -20,6 +20,10 @@ export interface DirectoryTreeOptions {
   onOpenMdFile: (content: string, name: string) => HTMLElement
   /** callback when a non-markdown file is opened */
   onOpenBinaryFile: (handle: FileSystemFileHandle, name: string) => void
+  /** called with the relative path of the currently selected file (e.g. "docs/arch.md") */
+  onUrlChange?: (path: string) => void
+  /** called after a directory is picked via showDirectoryPicker */
+  onPick?: () => void
 }
 
 const MD_RE = /\.(md|mdx|mkd|markdown)$/i
@@ -148,15 +152,33 @@ export default class DirectoryTree {
   private root: HTMLElement
   private onOpenMdFile: DirectoryTreeOptions['onOpenMdFile']
   private onOpenBinaryFile: DirectoryTreeOptions['onOpenBinaryFile']
+  private onUrlChange: DirectoryTreeOptions['onUrlChange']
+  private onPickCallback: DirectoryTreeOptions['onPick']
   private path: FileSystemDirectoryHandle[] = []
   private entries: DirEntry[] = []
+  /** relative path of the currently selected file, for highlight */
+  private activeFilePath: string | null = null
+  /** entry → li element, for toggling highlight without re-render */
+  private entryElMap = new Map<DirEntry, HTMLElement>()
+  /** currently highlighted li element */
+  private activeFileEl: HTMLElement | null = null
+  /** resolves when init() finishes (handle loaded or picker shown) */
+  readonly ready: Promise<void>
 
-  constructor({ root, onOpenMdFile, onOpenBinaryFile }: DirectoryTreeOptions) {
+  constructor({
+    root,
+    onOpenMdFile,
+    onOpenBinaryFile,
+    onUrlChange,
+    onPick,
+  }: DirectoryTreeOptions) {
     this.root = root
     this.onOpenMdFile = onOpenMdFile
     this.onOpenBinaryFile = onOpenBinaryFile
+    this.onUrlChange = onUrlChange
+    this.onPickCallback = onPick
     this.root.addEventListener('click', this.handleClick)
-    this.init()
+    this.ready = this.init()
   }
 
   private async init(): Promise<void> {
@@ -165,7 +187,10 @@ export default class DirectoryTree {
       this.renderPicker()
       return
     }
-    const perm = await handle.requestPermission({ mode: 'read' })
+    // Restoring the viewer is not a user gesture, so it must never trigger a
+    // permission prompt. If access expired, renderPicker() lets the user grant
+    // access again from an explicit click.
+    const perm = await handle.queryPermission({ mode: 'read' })
     if (perm !== 'granted') {
       this.renderPicker()
       return
@@ -183,6 +208,7 @@ export default class DirectoryTree {
       this.entries = await readDirectory(handle)
       await storeRootHandle(handle)
       this.render()
+      this.onPickCallback?.()
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
         console.error('Directory pick failed:', err)
@@ -214,6 +240,7 @@ export default class DirectoryTree {
 
   private async openFile(entry: DirEntry): Promise<void> {
     const handle = entry.handle as FileSystemFileHandle
+    this.updateUrlAndHighlight(entry)
     try {
       if (isMarkdown(entry.name)) {
         const file = await handle.getFile()
@@ -243,6 +270,11 @@ export default class DirectoryTree {
     this.path = targetPath
     this.entries = await readDirectory(targetPath[targetPath.length - 1])
     this.render()
+    // highlight the actual rendered entry
+    const linkedEntry = this.entries.find(en => en.name === name)
+    if (linkedEntry) {
+      this.updateUrlAndHighlight(linkedEntry)
+    }
     try {
       const file = await handle.getFile()
       const content = await file.text()
@@ -336,6 +368,64 @@ export default class DirectoryTree {
     }
   }
 
+  /** Build the relative path string for a file entry */
+  private buildFilePath(entry: DirEntry): string {
+    const parts = this.path.slice(1).map(h => h.name)
+    parts.push(entry.name)
+    return parts.join('/')
+  }
+
+  /** Update highlight and call onUrlChange */
+  private updateUrlAndHighlight(entry: DirEntry): void {
+    this.activeFilePath = this.buildFilePath(entry)
+    // update DOM highlight
+    if (this.activeFileEl) {
+      this.activeFileEl.classList.remove(className.DIRTREE_ACTIVE)
+    }
+    const newEl = this.entryElMap.get(entry)
+    if (newEl) {
+      newEl.classList.add(className.DIRTREE_ACTIVE)
+    }
+    this.activeFileEl = newEl || null
+    // notify URL change
+    this.onUrlChange?.(this.activeFilePath)
+  }
+
+  /** Navigate to a file by relative path (e.g. "docs/arch.md") */
+  async navigateTo(relPath: string): Promise<void> {
+    await this.ready
+    const parts = relPath.split('/').filter(Boolean)
+    if (parts.length === 0) return
+    const root = this.path[0] || (await loadRootHandle())
+    if (!root) return
+    let dirHandle = root
+    const dirChain: FileSystemDirectoryHandle[] = [root]
+    // traverse directories
+    for (let i = 0; i < parts.length - 1; i++) {
+      try {
+        dirHandle = await dirHandle.getDirectoryHandle(parts[i])
+        dirChain.push(dirHandle)
+      } catch {
+        console.warn('[dirtree] navigateTo: directory not found', parts[i])
+        return
+      }
+    }
+    // verify the file exists
+    const fileName = parts[parts.length - 1]
+    try {
+      await dirHandle.getFileHandle(fileName)
+    } catch {
+      console.warn('[dirtree] navigateTo: file not found', fileName)
+      return
+    }
+    this.path = dirChain
+    this.entries = await readDirectory(dirHandle)
+    this.render()
+    // open the file
+    const entry = this.entries.find(e => e.name === fileName)
+    if (entry) await this.openFile(entry)
+  }
+
   private renderPicker(): void {
     this.root.innerHTML = ''
     const wrap = new Ele<HTMLElement>('div', {
@@ -357,6 +447,8 @@ export default class DirectoryTree {
 
   private render(): void {
     this.root.innerHTML = ''
+    this.entryElMap.clear()
+    this.activeFileEl = null
     const wrap = new Ele<HTMLElement>('div', { className: className.DIRTREE })
 
     // current path header
@@ -378,15 +470,19 @@ export default class DirectoryTree {
     wrap.append(goUp)
 
     // entry list
+    const basePath = this.path
+      .slice(1)
+      .map(h => h.name)
+      .join('/')
     const list = new Ele<HTMLElement>('ul', {})
     this.entries.forEach(entry => {
-      list.append(this.renderEntry(entry))
+      list.append(this.renderEntry(entry, basePath))
     })
     wrap.append(list)
     this.root.appendChild(wrap.ele)
   }
 
-  private renderEntry(entry: DirEntry): HTMLElement {
+  private renderEntry(entry: DirEntry, parentPath: string): HTMLElement {
     const li = new Ele<HTMLElement>('li', {
       className: `${className.DIRTREE_ITEM} ${
         entry.type === 'directory'
@@ -395,6 +491,14 @@ export default class DirectoryTree {
       }`,
     })
     entryMap.set(li.ele, entry)
+
+    // register reverse lookup for active-file highlighting
+    const entryPath = parentPath ? `${parentPath}/${entry.name}` : entry.name
+    this.entryElMap.set(entry, li.ele)
+    if (entry.type === 'file' && entryPath === this.activeFilePath) {
+      li.ele.classList.add(className.DIRTREE_ACTIVE)
+      this.activeFileEl = li.ele
+    }
 
     // toggle arrow
     const toggle = new Ele<HTMLElement>('span', {
@@ -416,7 +520,7 @@ export default class DirectoryTree {
         className: className.DIRTREE_CHILDREN,
       })
       entry.children.forEach(child => {
-        children.append(this.renderEntry(child))
+        children.append(this.renderEntry(child, entryPath))
       })
       li.append(children)
     }

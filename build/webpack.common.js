@@ -10,6 +10,7 @@ module.exports = {
     content: resolve(__dirname, '../src/main.ts'),
     background: resolve(__dirname, '../src/background.ts'),
     popup: resolve(__dirname, '../src/popup/index.ts'),
+    viewer: resolve(__dirname, '../src/viewer/viewer.ts'),
   },
   output: {
     filename: 'js/[name].js',
@@ -92,6 +93,10 @@ module.exports = {
         {
           from: resolve(__dirname, '../src/popup/index.html'),
           to: 'popup.html',
+        },
+        {
+          from: resolve(__dirname, '../src/viewer/index.html'),
+          to: 'viewer.html',
         },
       ],
     }),

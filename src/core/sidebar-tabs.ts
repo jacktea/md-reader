@@ -63,6 +63,7 @@ export default class SidebarTabs {
     this.tabBar.append(btn)
     this.contentArea.append(panel)
     this.tabs[id] = { btn, panel }
+    this.applyActiveTab()
   }
 
   private async restoreTab(): Promise<void> {
