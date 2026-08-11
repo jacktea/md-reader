@@ -56,6 +56,7 @@
     "webpack-merge": "^5.8.0"
   },
   "dependencies": {
+    "@firecrawl/anydoc-wasm": "^0.1.7",
     "@md-reader/markdown-it-mermaid": "^0.5.1",
     "@md-reader/theme": "1.0.23-patch.1",
     "@mdit/plugin-alert": "^0.22.1",

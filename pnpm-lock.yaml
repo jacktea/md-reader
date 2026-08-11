@@ -7,6 +7,9 @@ settings:
 importers:
   .:
     dependencies:
+      '@firecrawl/anydoc-wasm':
+        specifier: ^0.1.7
+        version: 0.1.7
       '@md-reader/markdown-it-mermaid':
         specifier: ^0.5.1
         version: 0.5.1
@@ -193,6 +196,12 @@ packages:
     engines: { node: '>=12' }
     cpu: [loong64]
     os: [linux]
+
+  '@firecrawl/anydoc-wasm@0.1.7':
+    resolution:
+      {
+        integrity: sha512-FkuHl7K8Cl/kyt1ZS9DbX/0GubvW7dHPgiDWrmMoFDFI3GGAtyWsyvAnoqncbFA6yW/ZCjSiZ8jjhH0zeeBxfQ==,
+      }
 
   '@jridgewell/gen-mapping@0.3.2':
     resolution:
@@ -4552,6 +4561,8 @@ snapshots:
 
   '@esbuild/linux-loong64@0.15.7':
     optional: true
+
+  '@firecrawl/anydoc-wasm@0.1.7': {}
 
   '@jridgewell/gen-mapping@0.3.2':
     dependencies:

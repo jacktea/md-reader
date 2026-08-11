@@ -62,6 +62,14 @@ module.exports = {
           publicPath: 'chrome-extension://__MSG_@@extension_id__/fonts/',
         },
       },
+      {
+        test: /\.wasm$/,
+        type: 'asset/resource',
+        generator: {
+          outputPath: 'wasm',
+          publicPath: './wasm/',
+        },
+      },
     ],
   },
   resolve: {

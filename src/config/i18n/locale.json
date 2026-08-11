@@ -16,6 +16,7 @@
     "label_theme": "Theme",
     "label_language": "Language",
     "label_md-plugins": "Plugins",
+    "label_anydoc": "Office/EPUB Preview",
     "light": "Light",
     "dark": "Dark",
     "auto": "Auto",
@@ -32,7 +33,14 @@
     "TaskLists": "TaskList",
     "TOC": "TOC",
     "Alert": "Alert",
-    "warning_message": "Open the details page of extension \"md-reader\" and active \"allow access to file URLs\"."
+    "warning_message": "Open the details page of extension \"md-reader\" and active \"allow access to file URLs\".",
+    "label_browse_local": "Browse Local Files",
+    "browse_file": "Open File",
+    "browse_directory": "Open Directory",
+    "open_directory": "Open Directory",
+    "choose_file": "Open File",
+    "choose_directory": "Open Directory",
+    "choose_file_or_directory": "Choose a file or directory to preview"
   },
   "zh-CN": {
     "label_enable": "启用",
@@ -41,6 +49,7 @@
     "label_theme": "主题",
     "label_language": "语言",
     "label_md-plugins": "插件",
+    "label_anydoc": "Office/EPUB 预览",
     "light": "浅色",
     "dark": "深色",
     "auto": "自动",
@@ -57,7 +66,14 @@
     "TaskLists": "复选框",
     "TOC": "目录",
     "Alert": "警告框",
-    "warning_message": "请在 “md-reader” 扩展程序的 “详情” 中开启 “允许访问文件网址” 权限。"
+    "warning_message": "请在 “md-reader” 扩展程序的 “详情” 中开启 “允许访问文件网址” 权限。",
+    "label_browse_local": "浏览本地文件",
+    "browse_file": "打开文件",
+    "browse_directory": "打开目录",
+    "open_directory": "打开目录",
+    "choose_file": "打开文件",
+    "choose_directory": "打开目录",
+    "choose_file_or_directory": "请选择要预览的文件或目录"
   },
   "zh-TW": {
     "label_enable": "啟用",
@@ -66,6 +82,7 @@
     "label_theme": "主題",
     "label_language": "語言",
     "label_md-plugins": "插件",
+    "label_anydoc": "Office/EPUB 預覽",
     "light": "淺色",
     "dark": "深色",
     "auto": "自動",
@@ -82,7 +99,14 @@
     "TaskLists": "任務列表",
     "TOC": "目錄",
     "Alert": "警告框",
-    "warning_message": "請在 “md-reader” 扩展程序的 “詳情” 中開啟 “允許訪問文件網址” 權限。"
+    "warning_message": "請在 “md-reader” 扩展程序的 “詳情” 中開啟 “允許訪問文件網址” 權限。",
+    "label_browse_local": "瀏覽本地文件",
+    "browse_file": "打開文件",
+    "browse_directory": "打開目錄",
+    "open_directory": "打開目錄",
+    "choose_file": "打開文件",
+    "choose_directory": "打開目錄",
+    "choose_file_or_directory": "請選擇要預覽的文件或目錄"
   },
   "ko": {
     "label_enable": "활성화",
@@ -91,6 +115,7 @@
     "label_theme": "테마",
     "label_language": "언어",
     "label_md-plugins": "플러그인",
+    "label_anydoc": "Office/EPUB 미리보기",
     "light": "라이트",
     "dark": "다크",
     "auto": "자동",
@@ -107,7 +132,14 @@
     "TaskLists": "작업 목록",
     "TOC": "카테고리",
     "Alert": "알림 블록",
-    "warning_message": "확장 프로그램 \"md-reader\" 의 세부 정보 페이지를 열고 \"파일 URL에 대한 액세스 허용\"을 활성화 하세요."
+    "warning_message": "확장 프로그램 \"md-reader\" 의 세부 정보 페이지를 열고 \"파일 URL에 대한 액세스 허용\"을 활성화 하세요.",
+    "label_browse_local": "로컬 파일 찾아보기",
+    "browse_file": "파일 열기",
+    "browse_directory": "폴더 열기",
+    "open_directory": "폴더 열기",
+    "choose_file": "파일 열기",
+    "choose_directory": "폴더 열기",
+    "choose_file_or_directory": "미리 볼 파일 또는 폴더를 선택하세요"
   },
   "uk": {
     "label_enable": "Увімкнути",
@@ -116,6 +148,7 @@
     "label_theme": "Тема",
     "label_language": "Мова",
     "label_md-plugins": "Плаґіни",
+    "label_anydoc": "Попередній перегляд Office/EPUB",
     "light": "Світла",
     "dark": "Темна",
     "auto": "Автоматична",
@@ -132,6 +165,13 @@
     "TaskLists": "Списки завдань",
     "TOC": "Зміст",
     "Alert": "Блок сповіщень",
-    "warning_message": "Відкрийте сторінку керування розширенням «md-reader» та активуйте «Надавати доступ до URL-адрес файлу»."
+    "warning_message": "Відкрийте сторінку керування розширенням «md-reader» та активуйте «Надавати доступ до URL-адрес файлу».",
+    "label_browse_local": "Перегляд локальних файлів",
+    "browse_file": "Відкрити файл",
+    "browse_directory": "Відкрити каталог",
+    "open_directory": "Відкрити каталог",
+    "choose_file": "Відкрити файл",
+    "choose_directory": "Відкрити каталог",
+    "choose_file_or_directory": "Виберіть файл або каталог для перегляду"
   }
 }

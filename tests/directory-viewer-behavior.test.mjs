@@ -24,7 +24,7 @@ test('restoring a stored directory does not request permission without a user ge
 test('content swap preserves relative image paths for handle-based loading', async () => {
   const source = await readFile(viewerUrl, 'utf8')
   const swapContent = source.match(
-    /const swapContent = \([\s\S]*?\n  \}\n\n  const tree/,
+    /const swapContent = \([\s\S]*?\n  \}\n\n  \/\*\*/,
   )
 
   assert.ok(swapContent, 'expected to find the viewer content swap')
@@ -40,16 +40,16 @@ test('directory viewer forwards image clicks to the preview plugins', async () =
   )
 })
 
-test('scroll state is initialized before restoring a file from the URL', async () => {
+test('scroll state is initialized before rendering a file', async () => {
   const source = await readFile(viewerUrl, 'utf8')
   const goTopInitialization = source.indexOf('const goTopBtn')
-  const initialNavigation = source.indexOf('await tree.navigateTo(initialPath)')
+  const fileRendering = source.indexOf('renderFileHandle(pendingFile')
 
   assert.notEqual(goTopInitialization, -1, 'expected the go-top button')
-  assert.notEqual(initialNavigation, -1, 'expected initial file navigation')
+  assert.notEqual(fileRendering, -1, 'expected file rendering')
   assert.ok(
-    goTopInitialization < initialNavigation,
-    'onScroll can run during initial navigation, so goTopBtn must already be initialized',
+    goTopInitialization < fileRendering,
+    'onScroll can run during initial file rendering, so goTopBtn must already be initialized',
   )
 })
 
@@ -102,4 +102,71 @@ test('relative images are masked while absolute images are left alone', async ()
   assert.equal(relativeImage.src, TRANSPARENT_IMAGE_PLACEHOLDER)
   assert.equal(absoluteAttributes.has('data-rel-src'), false)
   assert.equal(absoluteImage.src, 'https://example.com/diagram.png')
+})
+
+test('binary preview falls back to registered converters with a loading state', async () => {
+  const source = await readFile(viewerUrl, 'utf8')
+
+  assert.match(source, /findBinaryConverter\(name\)/)
+  assert.match(source, /正在转换/)
+  assert.match(source, /converter\.convert\(file, name\)/)
+  assert.match(source, /previewBinary\(handle, name, mdContent, mdSideList\)/)
+})
+
+test('viewer reads the anydoc toggle from storage', async () => {
+  const source = await readFile(viewerUrl, 'utf8')
+
+  assert.match(source, /storage\.get\(['"]anydocEnabled['"]\)/)
+  assert.match(source, /configData\.anydocEnabled/)
+})
+
+test('viewer accepts dropped files through the anydoc pipeline', async () => {
+  const source = await readFile(viewerUrl, 'utf8')
+
+  assert.match(source, /addEventListener\(['"]dragover['"]/)
+  assert.match(source, /addEventListener\(['"]drop['"]/)
+  assert.match(source, /e\.dataTransfer\?\.files\?\.\[0\]/)
+  assert.match(source, /tryConvertAndRender\(file, file\.name\)/)
+})
+
+test('extension manifest allows wasm instantiation', async () => {
+  const manifestUrl = new URL('../src/manifest.json', import.meta.url)
+  const manifest = JSON.parse(await readFile(manifestUrl, 'utf8'))
+
+  assert.ok(
+    manifest.content_security_policy,
+    'expected a content_security_policy',
+  )
+  assert.match(
+    manifest.content_security_policy.extension_pages,
+    /'wasm-unsafe-eval'/,
+  )
+  assert.ok(
+    manifest.permissions.includes('downloads'),
+    'needs downloads for MIME-based interception',
+  )
+  assert.ok(
+    !manifest.permissions.includes('declarativeNetRequest'),
+    'MIME interception replaces URL-suffix redirects',
+  )
+})
+
+test('background intercepts remote office/epub downloads by MIME', async () => {
+  const backgroundUrl = new URL('../src/background.ts', import.meta.url)
+  const source = await readFile(backgroundUrl, 'utf8')
+
+  assert.match(source, /chrome\.downloads\.onCreated/)
+  assert.match(source, /OFFICE_MIME_RE/)
+  assert.match(source, /item\.mime/)
+  assert.match(source, /anydocEnabled/)
+  assert.match(source, /downloads\.cancel\(item\.id\)/)
+  assert.match(source, /getURL\(\s*['"]viewer\.html['"],?\s*\)/)
+})
+
+test('viewer renders remote office files via #remote= hash', async () => {
+  const source = await readFile(viewerUrl, 'utf8')
+
+  assert.match(source, /previewRemoteFile/)
+  assert.match(source, /#remote=\(\.\+\)\$/)
+  assert.match(source, /fetch\(url, \{ credentials: 'include' \}\)/)
 })

@@ -42,6 +42,10 @@
   function changeLocale(language) {
     localize = i18n(language)
   }
+
+  function openViewer() {
+    window.open(chrome.runtime.getURL('viewer.html'), '_blank')
+  }
 </script>
 
 <main>
@@ -50,6 +54,15 @@
   {#if !isAllowViewFile}
     <Warning {localize} />
   {/if}
+
+  <div class="browse-local">
+    <div class="browse-local-title">{localize('label_browse_local')}</div>
+    <div class="browse-local-btns">
+      <button class="browse-local-btn" on:click={openViewer}>
+        {localize('label_browse_local')}
+      </button>
+    </div>
+  </div>
 
   <div class="form" disabled={!data.enable}>
     <div class="form-item inline">
@@ -83,6 +96,18 @@
           bind:checked={data.refresh}
           color="primary"
           on:change={() => updateConfig('refresh', data.refresh)}
+        />
+      </FormField>
+    </div>
+
+    <div class="form-item inline">
+      <span class="label-item">{localize('label_anydoc')}:</span>
+      <FormField align="end">
+        <Switch
+          disabled={!data.enable}
+          bind:checked={data.anydocEnabled}
+          color="primary"
+          on:change={() => updateConfig('anydocEnabled', data.anydocEnabled)}
         />
       </FormField>
     </div>
@@ -156,5 +181,36 @@
     font-weight: bolder;
     font-size: 13px;
     color: #243158e3;
+  }
+  .browse-local {
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e0e0e0;
+  }
+  .browse-local-title {
+    font-weight: bolder;
+    font-size: 13px;
+    color: #243158e3;
+    margin-bottom: 8px;
+  }
+  .browse-local-btns {
+    display: flex;
+    gap: 8px;
+  }
+  .browse-local-btn {
+    flex: 1;
+    padding: 8px 12px;
+    font-size: 13px;
+    border: 1px solid #607cd2;
+    border-radius: 6px;
+    background: rgba(96, 124, 210, 0.1);
+    color: #607cd2;
+    cursor: pointer;
+    text-align: center;
+    transition: background 0.15s, color 0.15s;
+  }
+  .browse-local-btn:hover {
+    background: #607cd2;
+    color: #fff;
   }
 </style>

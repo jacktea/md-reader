@@ -4,6 +4,7 @@ import className from '@/config/class-name'
 const DB_NAME = 'md-reader-dir'
 const DB_STORE = 'handles'
 const ROOT_KEY = 'root'
+const FILE_KEY = 'pendingFile'
 
 interface DirEntry {
   name: string
@@ -122,6 +123,51 @@ async function loadRootHandle(): Promise<FileSystemDirectoryHandle | null> {
   )
   db.close()
   return handle
+}
+
+/**
+ * Store a single-file handle chosen via the popup, so the viewer page
+ * (same chrome-extension:// origin) can pick it up and render it directly.
+ * The directory tree keeps its own root handle under ROOT_KEY; this is a
+ * one-shot handoff consumed by the viewer on load.
+ */
+export async function storeFileHandle(
+  handle: FileSystemFileHandle,
+): Promise<void> {
+  const db = await openIndexedDB()
+  const tx = db.transaction(DB_STORE, 'readwrite')
+  tx.objectStore(DB_STORE).put(handle, FILE_KEY)
+  await new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
+  db.close()
+}
+
+export async function loadFileHandle(): Promise<FileSystemFileHandle | null> {
+  const db = await openIndexedDB()
+  const tx = db.transaction(DB_STORE, 'readonly')
+  const getReq = tx.objectStore(DB_STORE).get(FILE_KEY)
+  const handle = await new Promise<FileSystemFileHandle | null>(
+    (resolve, reject) => {
+      getReq.onsuccess = () => resolve(getReq.result || null)
+      getReq.onerror = () => reject(getReq.error)
+    },
+  )
+  db.close()
+  return handle
+}
+
+/** Remove the one-shot file handle after the viewer has consumed it. */
+export async function clearFileHandle(): Promise<void> {
+  const db = await openIndexedDB()
+  const tx = db.transaction(DB_STORE, 'readwrite')
+  tx.objectStore(DB_STORE).delete(FILE_KEY)
+  await new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
+  db.close()
 }
 
 async function readDirectory(

@@ -4,6 +4,9 @@
   "version_name": "2.12.12",
   "author": "Bener",
   "manifest_version": 3,
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
   "description": "__MSG_ext_desc__",
   "default_locale": "en",
   "icons": {
@@ -30,7 +33,7 @@
     "default_title": "md-reader",
     "default_popup": "popup.html"
   },
-  "permissions": ["activeTab", "storage"],
+  "permissions": ["activeTab", "storage", "downloads"],
   "host_permissions": ["*://*/*"],
   "content_scripts": [
     {

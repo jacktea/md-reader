@@ -10,6 +10,8 @@ export interface Data {
   mdPlugins?: typeof MD_PLUGINS
   pageTheme?: typeof PAGE_THEMES[0]
   hiddenSide?: boolean
+  /** Preview office documents / epub via the anydoc converter plugin. */
+  anydocEnabled?: boolean
 }
 
 export function getDefaultData(mergeData: Data = {}): Data {
@@ -21,6 +23,7 @@ export function getDefaultData(mergeData: Data = {}): Data {
     language: i18n().locale,
     mdPlugins: [...MD_PLUGINS],
     pageTheme: PAGE_THEMES[0],
+    anydocEnabled: true,
     ...mergeData,
   }
 }

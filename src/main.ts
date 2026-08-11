@@ -23,7 +23,6 @@ import goTopIcon from '@/images/icon_go_top.svg'
 import '@/style/index.less'
 
 // Local file directory tree - no longer used here, viewer.html handles it
-import SidebarTabs from '@/core/sidebar-tabs'
 
 // Mermaid async rendering
 import { renderDiagrams } from '@/core/mermaid'
@@ -149,20 +148,9 @@ function main(data: Data) {
   renderSide()
   document.addEventListener('scroll', throttle(onScroll, 100))
 
-  // For local files, wrap the outline in a tab container and add a directory
-  // button.  The directory tree tab is only created after the user clicks the
-  // button and grants directory access via the File System Access API.
-  // For remote files, keep the plain outline sidebar as before.
-  const isLocalFile = document.URL.startsWith('file://')
-  let sidebarElement: Ele<HTMLElement> = mdSideList
-  let sidebarTabs: SidebarTabs | null = null
-  if (isLocalFile) {
-    sidebarTabs = new SidebarTabs({
-      outlineList: mdSideList.ele,
-      currentUrl: document.URL,
-    })
-    sidebarElement = new Ele(sidebarTabs.element)
-  }
+  // The outline is used directly for both local and remote files. Directory
+  // browsing moved to viewer.html, opened from the popup.
+  const sidebarElement = mdSideList
 
   /* render raw toggle button */
   const rawToggleBtn = new Ele<HTMLElement>(
@@ -227,23 +215,6 @@ function main(data: Data) {
     return false
   }
 
-  /* render directory open button (local files only) */
-  const dirOpenBtn = new Ele<HTMLElement>('button', {
-    className: [className.MD_BUTTON, className.DIR_OPEN_BTN],
-    title: '打开目录',
-  })
-  dirOpenBtn.textContent = '📂'
-  if (isLocalFile && sidebarTabs) {
-    dirOpenBtn.on('click', () => {
-      // navigate to viewer; viewer handles directory pick + handle storage in
-      // its own chrome-extension:// origin (content-script IndexedDB is
-      // isolated per origin, so handles stored here would be invisible there)
-      window.location.href = chrome.runtime.getURL('viewer.html#/')
-    })
-  } else {
-    dirOpenBtn.hide()
-  }
-
   /* render go top button */
   const goTopBtn = new Ele<HTMLElement>(
     'button',
@@ -259,7 +230,7 @@ function main(data: Data) {
   const buttonWrap = new Ele<HTMLElement>(
     'div',
     { className: className.BUTTON_WRAP_ELE },
-    [sideExpandBtn, dirOpenBtn, rawToggleBtn, goTopBtn],
+    [sideExpandBtn, rawToggleBtn, goTopBtn],
   )
 
   /* mount elements */

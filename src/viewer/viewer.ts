@@ -1,7 +1,9 @@
 import throttle from 'lodash.throttle'
 import Event from '@/core/event'
+import storage from '@/core/storage'
 import Ele, { svg } from '@/core/ele'
 import { initPlugins } from '@/plugins'
+import { findBinaryConverter } from '@/core/converters'
 import className from '@/config/class-name'
 import type { Theme } from '@/config/page-themes'
 import { getDefaultData, type Data } from '@/core/data'
@@ -20,7 +22,12 @@ import '@/style/index.less'
 
 // Local file directory tree
 import SidebarTabs from '@/core/sidebar-tabs'
-import DirectoryTree from '@/core/directory-tree'
+import DirectoryTree, {
+  loadFileHandle,
+  clearFileHandle,
+  storeFileHandle,
+  storeRootHandle,
+} from '@/core/directory-tree'
 import { prepareRelativeImages } from '@/core/local-images'
 
 // Mermaid async rendering
@@ -63,8 +70,34 @@ function previewBinary(
 
 // ——— main ———
 
+const MD_RE = /\.(md|mdx|mkd|markdown)$/i
+
+function isMarkdownFile(name: string): boolean {
+  return MD_RE.test(name)
+}
+
+/** Render a single file handle (from the popup) in the viewer. */
+async function renderFileHandle(
+  handle: FileSystemFileHandle,
+  swapContent: (content: string, name: string) => HTMLElement,
+  showBinary: (handle: FileSystemFileHandle, name: string) => void,
+): Promise<void> {
+  const name = handle.name
+  if (isMarkdownFile(name)) {
+    const file = await handle.getFile()
+    const content = await file.text()
+    swapContent(content, name)
+  } else {
+    await showBinary(handle, name)
+  }
+}
+
 async function main() {
   const configData = getDefaultData()
+  const stored = await storage.get('anydocEnabled')
+  if (stored.anydocEnabled !== undefined) {
+    configData.anydocEnabled = stored.anydocEnabled
+  }
 
   let globalEvent = new Event()
   initPlugins({ event: globalEvent })
@@ -249,11 +282,9 @@ async function main() {
     }
   const contentRender = mdRenderer(mdContent)
 
-  // ——— directory tree ———
-
-  const dirtreeContainer = new Ele<HTMLElement>('div', {
-    className: className.TAB_DIRTREE,
-  })
+  // ——— content / binary renderers ———
+  // swapContent, tryConvertAndRender, showBinary, previewRemoteFile are
+  // shared by the directory tree and single-file (file mode) rendering.
 
   const swapContent = (content: string, _name: string) => {
     currentMarkdown = content
@@ -266,39 +297,204 @@ async function main() {
     return mdContent.ele
   }
 
-  const showBinary = (handle: FileSystemFileHandle, name: string) => {
+  /**
+   * Try to convert a binary file (anydoc office/epub) and render the result.
+   * Returns false when no converter applies or conversion fails, so the
+   * caller can fall back.
+   */
+  const tryConvertAndRender = async (
+    file: File,
+    name: string,
+  ): Promise<boolean> => {
+    const converter =
+      configData.anydocEnabled !== false ? findBinaryConverter(name) : null
+    if (!converter) return false
+
+    mdContent.innerHTML = `<div class="${className.MD_CONTENT}"><p style="text-align:center;padding:40px;color:var(--color-text-gray)">正在转换: ${name}…</p></div>`
+    mdSideList.innerHTML = ''
+    try {
+      const result = await converter.convert(file, name)
+      if (!result) return false
+      currentMarkdown = result.markdown
+      rawContent.textContent = result.markdown
+      contentRender(result.markdown)
+      mdContent.toggle(!rawMode)
+      rawContent.toggle(rawMode)
+      renderSide()
+      return true
+    } catch (err) {
+      console.error(`[anydoc] preview failed for ${name}:`, err)
+      return false
+    }
+  }
+
+  const showBinary = async (handle: FileSystemFileHandle, name: string) => {
     currentMarkdown = null
     rawMode = false
     rawContent.hide()
     mdContent.show()
-    previewBinary(handle, name, mdContent, mdSideList)
+
+    const file = await handle.getFile()
+    const converted = await tryConvertAndRender(file, name)
+    if (!converted) {
+      previewBinary(handle, name, mdContent, mdSideList)
+    }
   }
 
-  const tree = new DirectoryTree({
-    root: dirtreeContainer.ele,
-    onOpenMdFile: swapContent,
-    onOpenBinaryFile: showBinary,
-    onUrlChange: (path: string) => setHashPath(path),
-    onPick: () => {
+  // ——— remote file preview ———
+  //
+  // The service worker redirects main-frame navigations to office/epub URLs
+  // into `viewer.html#remote=<url>` (declarativeNetRequest). Here we fetch
+  // the original URL and run it through the same anydoc pipeline. With
+  // host_permissions the fetch is exempt from CORS; credentials are sent so
+  // files behind a login still load when the site's cookies are present.
+  const previewRemoteFile = async (rawUrl: string) => {
+    let url: string
+    try {
+      url = decodeURIComponent(rawUrl)
+    } catch {
+      url = rawUrl
+    }
+    const name =
+      decodeURIComponent(
+        url.split('?')[0].split('/').pop() || 'document.docx',
+      ) || 'document.docx'
+
+    currentMarkdown = null
+    rawMode = false
+    rawContent.hide()
+    mdContent.show()
+    mdContent.innerHTML = `<div class="${className.MD_CONTENT}"><p style="text-align:center;padding:40px;color:var(--color-text-gray)">正在加载: ${name}…</p></div>`
+    mdSideList.innerHTML = ''
+
+    try {
+      const res = await fetch(url, { credentials: 'include' })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const bytes = await res.arrayBuffer()
+      const file = new File([bytes], name, {
+        type: res.headers.get('content-type') ?? '',
+      })
+      const converted = await tryConvertAndRender(file, name)
+      if (!converted) throw new Error('unsupported file type')
+    } catch (err) {
+      console.error(`[anydoc] remote preview failed for ${url}:`, err)
+      mdContent.innerHTML = `<div class="${className.MD_CONTENT}"><p style="text-align:center;padding:40px;color:var(--color-text-gray)">无法预览此文件: ${name}<br/><a href="${url}" style="color:var(--color-link,#576b95)">在浏览器中打开</a></p></div>`
+      mdSideList.innerHTML = ''
+    }
+  }
+
+  // ——— mode detection: single file preview vs directory tree ———
+  // A file handle stored by the popup renders directly (file mode); otherwise
+  // we show a center choose screen. The sidebar is hidden until the user
+  // picks a file or directory.
+  let isFileMode = false
+  let dirtreeContainer: Ele<HTMLElement> | null = null
+  let tree: DirectoryTree | null = null
+  const pendingFile = await loadFileHandle()
+
+  // Hide the sidebar initially; we'll show it when a file/directory is opened.
+  sidebarTabs.element.style.display = 'none'
+  mdBody.setStyle({ paddingLeft: '0' })
+
+  /** Show the sidebar and restore body padding. */
+  const showSidebar = () => {
+    sidebarTabs.element.style.display = ''
+    mdBody.setStyle({ paddingLeft: '' })
+  }
+
+  /** Switch to directory mode: create directory tree, add dirtree tab. */
+  const activateDirectoryMode = () => {
+    if (dirtreeContainer) return // already in directory mode
+    isFileMode = false
+    showSidebar()
+    dirtreeContainer = new Ele<HTMLElement>('div', {
+      className: className.TAB_DIRTREE,
+    })
+    tree = new DirectoryTree({
+      root: dirtreeContainer.ele,
+      onOpenMdFile: swapContent,
+      onOpenBinaryFile: showBinary,
+      onUrlChange: (path: string) => setHashPath(path),
+      onPick: () => {
+        const path = getHashPath()
+        if (path) void tree!.navigateTo(path)
+      },
+    })
+    sidebarTabs.addTab('dirtree', '目录树', dirtreeContainer.ele)
+    sidebarTabs.activateTab('dirtree')
+    // listen for hash changes (browser back/forward, manual URL edit)
+    window.addEventListener('hashchange', () => {
       const path = getHashPath()
-      if (path) void tree.navigateTo(path)
-    },
-  })
-
-  sidebarTabs.addTab('dirtree', '目录树', dirtreeContainer.ele)
-
-  // handle initial hash
-  const initialPath = getHashPath()
-  if (initialPath) {
-    await tree.ready
-    await tree.navigateTo(initialPath)
+      if (path) void tree!.navigateTo(path)
+    })
   }
 
-  // listen for hash changes (browser back/forward, manual URL edit)
-  window.addEventListener('hashchange', () => {
-    const path = getHashPath()
-    if (path) void tree.navigateTo(path)
-  })
+  if (pendingFile) {
+    // File mode, from popup
+    isFileMode = true
+    showSidebar()
+    await clearFileHandle()
+    await renderFileHandle(pendingFile, swapContent, showBinary)
+  } else {
+    // Center choose screen (no sidebar until user picks)
+    const chooseScreen = new Ele<HTMLElement>('div', {
+      className: 'dirtree-hint',
+      style:
+        'position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px',
+    })
+    const hint = new Ele<HTMLElement>('p', {
+      style: 'margin:0;font-size:14px;color:var(--color-text-gray)',
+    })
+    hint.textContent = '请选择要预览的文件或目录'
+    chooseScreen.append(hint)
+
+    const fileBtn = new Ele<HTMLElement>('button', {
+      className: className.DIRTREE_PICK_BTN,
+    })
+    fileBtn.textContent = '打开文件'
+    fileBtn.on('click', () => {
+      void (async () => {
+        try {
+          const [handle] = await window.showOpenFilePicker()
+          await storeFileHandle(handle)
+          isFileMode = true
+          showSidebar()
+          await clearFileHandle()
+          await renderFileHandle(handle, swapContent, showBinary)
+          chooseScreen.hide()
+          dirOpenBtn.show()
+        } catch (err) {
+          if ((err as Error).name !== 'AbortError') {
+            console.error('File pick failed:', err)
+          }
+        }
+      })()
+    })
+    chooseScreen.append(fileBtn)
+
+    const dirBtn = new Ele<HTMLElement>('button', {
+      className: className.DIRTREE_PICK_BTN,
+      style: 'margin-top:0',
+    })
+    dirBtn.textContent = '打开目录'
+    dirBtn.on('click', () => {
+      void (async () => {
+        try {
+          const handle = await window.showDirectoryPicker()
+          await storeRootHandle(handle)
+          chooseScreen.hide()
+          activateDirectoryMode()
+        } catch (err) {
+          if ((err as Error).name !== 'AbortError') {
+            console.error('Directory pick failed:', err)
+          }
+        }
+      })()
+    })
+    chooseScreen.append(dirBtn)
+
+    mdBody.ele.insertBefore(chooseScreen.ele, mdBody.ele.firstChild)
+  }
 
   // ——— buttons ———
 
@@ -326,10 +522,35 @@ async function main() {
     document.body.classList.toggle('side-collapsed')
   })
 
+  /* directory open button: switches file mode → directory mode */
+  const dirOpenBtn = new Ele<HTMLElement>('button', {
+    className: [className.MD_BUTTON, className.DIR_OPEN_BTN],
+    title: '打开目录',
+  })
+  dirOpenBtn.textContent = '📂'
+  dirOpenBtn.hide()
+
+  dirOpenBtn.on('click', () => {
+    void (async () => {
+      try {
+        const handle = await window.showDirectoryPicker()
+        await storeRootHandle(handle)
+        activateDirectoryMode()
+        dirOpenBtn.hide()
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') {
+          console.error('Directory pick failed:', err)
+        }
+      }
+    })()
+  })
+  // Show the directory button only in file mode (single-file preview)
+  if (isFileMode) dirOpenBtn.show()
+
   const buttonWrap = new Ele<HTMLElement>(
     'div',
     { className: className.BUTTON_WRAP_ELE },
-    [sideExpandBtn, rawToggleBtn, goTopBtn],
+    [sideExpandBtn, rawToggleBtn, dirOpenBtn, goTopBtn],
   )
   mdBody.append(buttonWrap)
 
@@ -337,6 +558,52 @@ async function main() {
 
   document.body.appendChild(mdBody.ele)
   document.body.appendChild(sidebarTabs.element)
+
+  // remote file redirect target: viewer.html#remote=<url>
+  const remoteMatch = window.location.hash.match(/^#remote=(.+)$/)
+  if (remoteMatch) {
+    void previewRemoteFile(remoteMatch[1])
+  }
+
+  // ——— drag & drop preview ———
+  //
+  // Dropping a file into the browser chrome (tab strip / new tab) makes
+  // Chrome navigate to file://… and download office/epub files before any
+  // extension code can run. Dropping *into this page* instead hands the
+  // page a real `File` object (no extra permission needed), which feeds the
+  // same anydoc pipeline as the directory tree.
+  let dragDepth = 0
+  document.addEventListener('dragenter', e => {
+    e.preventDefault()
+    dragDepth += 1
+  })
+  document.addEventListener('dragover', e => e.preventDefault())
+  document.addEventListener('dragleave', e => {
+    dragDepth = Math.max(0, dragDepth - 1)
+  })
+  document.addEventListener('drop', e => {
+    e.preventDefault()
+    dragDepth = 0
+    const file = e.dataTransfer?.files?.[0]
+    if (!file) return
+    currentMarkdown = null
+    rawMode = false
+    rawContent.hide()
+    mdContent.show()
+    void tryConvertAndRender(file, file.name).then(converted => {
+      if (converted) return
+      const objectUrl = URL.createObjectURL(file)
+      const ext = file.name.split('.').pop()?.toLowerCase()
+      if (ext && IMG_EXTS.has(ext)) {
+        mdContent.innerHTML = `<div class="${className.MD_CONTENT}"><img src="${objectUrl}" alt="${file.name}" style="max-width:100%;display:block;margin:0 auto" /></div>`
+      } else if (ext === 'pdf') {
+        mdContent.innerHTML = `<iframe src="${objectUrl}" style="width:100%;height:90vh;border:none"></iframe>`
+      } else {
+        mdContent.innerHTML = `<div class="${className.MD_CONTENT}"><p style="text-align:center;padding:40px;color:var(--color-text-gray)">无法预览此文件类型: ${file.name}</p></div>`
+      }
+      mdSideList.innerHTML = ''
+    })
+  })
 
   // ——— theme change listener ———
 

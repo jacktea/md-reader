@@ -54,6 +54,9 @@ interface Window {
   showDirectoryPicker(
     options?: FileSystemPickerOptions,
   ): Promise<FileSystemDirectoryHandle>
+  showOpenFilePicker(
+    options?: FileSystemPickerOptions,
+  ): Promise<FileSystemFileHandle[]>
 }
 
 interface FileSystemPickerOptions {

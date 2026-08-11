@@ -3,36 +3,31 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 
 const manifestUrl = new URL('../src/manifest.json', import.meta.url)
-const contentScriptUrl = new URL('../src/main.ts', import.meta.url)
+const popupUrl = new URL('../src/popup/components/app.svelte', import.meta.url)
 
-test('directory viewer opened from a local file is web-accessible', async () => {
-  const [manifestSource, contentScript] = await Promise.all([
+test('directory viewer is opened from the popup', async () => {
+  const [manifestSource, popupSource] = await Promise.all([
     readFile(manifestUrl, 'utf8'),
-    readFile(contentScriptUrl, 'utf8'),
+    readFile(popupUrl, 'utf8'),
   ])
   const manifest = JSON.parse(manifestSource)
-  const viewerMatch = contentScript.match(
+  const viewerMatch = popupSource.match(
     /chrome\.runtime\.getURL\(['"]([^'"]+)['"]\)/,
   )
 
   assert.ok(
     viewerMatch,
-    'expected the directory button to open an extension page',
+    'expected popup to open viewer.html via chrome.runtime.getURL',
   )
 
   const viewerPath = viewerMatch[1].split(/[?#]/, 1)[0]
+  assert.equal(viewerPath, 'viewer.html', 'expected viewer.html as target')
+
+  // viewer.html must be web-accessible for the directory download-redirect
+  // flow (background.ts opens viewer.html from a service worker context).
   const viewerResource = manifest.web_accessible_resources.find(entry =>
     entry.resources.includes(viewerPath),
   )
 
-  assert.ok(
-    viewerResource,
-    `${viewerPath} must be web-accessible before a file:// page can navigate to it`,
-  )
-  assert.ok(
-    viewerResource.matches.some(
-      pattern => pattern === '<all_urls>' || pattern.startsWith('file://'),
-    ),
-    `${viewerPath} must be web-accessible to file:// pages`,
-  )
+  assert.ok(viewerResource, `${viewerPath} must be web-accessible`)
 })
